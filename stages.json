@@ -1,0 +1,7 @@
+[
+ {"name": "due soon", "min_days": -3, "max_days": 0, "template": "Hi {client}, a quick heads-up that invoice {invoice} for NGN {amount} is due on {due}. Thank you!"},
+ {"name": "friendly", "min_days": 1, "max_days": 7, "template": "Hi {client}, just a reminder that invoice {invoice} (NGN {amount}) was due on {due}. If it's already sent, please ignore this. Thanks!"},
+ {"name": "firm", "min_days": 8, "max_days": 21, "template": "Dear {client}, invoice {invoice} for NGN {amount} is now {days} days overdue. Please arrange payment this week or let us know when to expect it."},
+ {"name": "final", "min_days": 22, "max_days": 45, "template": "Dear {client}, this is a final reminder: invoice {invoice} (NGN {amount}) is {days} days overdue. Please settle within 5 working days to avoid service suspension.", "escalate": true},
+ {"name": "escalate", "min_days": 46, "max_days": 9999, "template": "Dear {client}, invoice {invoice} (NGN {amount}) is {days} days overdue and has been passed to our accounts manager, who will contact you.", "escalate": true}
+]

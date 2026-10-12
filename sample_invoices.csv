@@ -1,0 +1,9 @@
+invoice,client,contact,channel,amount,due_date,status
+INV-201,Bright Schools,+2348030000001,whatsapp,350000,2026-10-10,open
+INV-188,Kola Foods,kola@example.com,email,120000,2026-10-04,open
+INV-170,Zenith Clinics,+2348030000002,whatsapp,780000,2026-09-24,open
+INV-150,Harbour Traders,ops@example.com,email,95000,2026-09-05,open
+INV-120,Mainland Pharmacy,+2348030000003,whatsapp,410000,2026-08-01,open
+INV-160,Delta Events,events@example.com,email,200000,2026-09-15,paid
+INV-165,Ace Motors,+2348030000004,whatsapp,60000,2026-09-20,disputed
+INV-210,Prime Realty,prime@example.com,email,500000,2026-10-30,open

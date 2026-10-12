@@ -1,0 +1,287 @@
+{
+  "name": "Payment Reminder Bot (AI Automation Projects #6)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "d72bd47d-c7d8-568d-a5f4-46ff7083516c",
+      "name": "Schedule (weekdays 9am)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "cc85060e-2f40-5ae8-b7dc-73aa33075cc6",
+      "name": "Read open invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cb1e1f52-5cad-5296-bdfe-7393db6eff33",
+      "name": "Test with sample data",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sample data from this repo. Click 'Test workflow' to run the whole flow on it.\nconst sample = [\n {\n  \"invoice\": \"INV-201\",\n  \"client\": \"Bright Schools\",\n  \"contact\": \"+2348030000001\",\n  \"channel\": \"whatsapp\",\n  \"amount\": \"350000\",\n  \"due_date\": \"2026-10-10\",\n  \"status\": \"open\"\n },\n {\n  \"invoice\": \"INV-188\",\n  \"client\": \"Kola Foods\",\n  \"contact\": \"kola@example.com\",\n  \"channel\": \"email\",\n  \"amount\": \"120000\",\n  \"due_date\": \"2026-10-04\",\n  \"status\": \"open\"\n },\n {\n  \"invoice\": \"INV-170\",\n  \"client\": \"Zenith Clinics\",\n  \"contact\": \"+2348030000002\",\n  \"channel\": \"whatsapp\",\n  \"amount\": \"780000\",\n  \"due_date\": \"2026-09-24\",\n  \"status\": \"open\"\n },\n {\n  \"invoice\": \"INV-150\",\n  \"client\": \"Harbour Traders\",\n  \"contact\": \"ops@example.com\",\n  \"channel\": \"email\",\n  \"amount\": \"95000\",\n  \"due_date\": \"2026-09-05\",\n  \"status\": \"open\"\n },\n {\n  \"invoice\": \"INV-120\",\n  \"client\": \"Mainland Pharmacy\",\n  \"contact\": \"+2348030000003\",\n  \"channel\": \"whatsapp\",\n  \"amount\": \"410000\",\n  \"due_date\": \"2026-08-01\",\n  \"status\": \"open\"\n },\n {\n  \"invoice\": \"INV-160\",\n  \"client\": \"Delta Events\",\n  \"contact\": \"events@example.com\",\n  \"channel\": \"email\",\n  \"amount\": \"200000\",\n  \"due_date\": \"2026-09-15\",\n  \"status\": \"paid\"\n },\n {\n  \"invoice\": \"INV-165\",\n  \"client\": \"Ace Motors\",\n  \"contact\": \"+2348030000004\",\n  \"channel\": \"whatsapp\",\n  \"amount\": \"60000\",\n  \"due_date\": \"2026-09-20\",\n  \"status\": \"disputed\"\n },\n {\n  \"invoice\": \"INV-210\",\n  \"client\": \"Prime Realty\",\n  \"contact\": \"prime@example.com\",\n  \"channel\": \"email\",\n  \"amount\": \"500000\",\n  \"due_date\": \"2026-10-30\",\n  \"status\": \"open\"\n }\n];\nreturn sample.map(json => ({ json }));"
+      },
+      "id": "e0dd186c-6d0b-53c7-856f-af7ee8dd2553",
+      "name": "Sample data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Payment Reminder Bot: core logic (ported from main.py)\nconst STAGES = [\n {\n  \"name\": \"due soon\",\n  \"min_days\": -3,\n  \"max_days\": 0,\n  \"template\": \"Hi {client}, a quick heads-up that invoice {invoice} for NGN {amount} is due on {due}. Thank you!\"\n },\n {\n  \"name\": \"friendly\",\n  \"min_days\": 1,\n  \"max_days\": 7,\n  \"template\": \"Hi {client}, just a reminder that invoice {invoice} (NGN {amount}) was due on {due}. If it's already sent, please ignore this. Thanks!\"\n },\n {\n  \"name\": \"firm\",\n  \"min_days\": 8,\n  \"max_days\": 21,\n  \"template\": \"Dear {client}, invoice {invoice} for NGN {amount} is now {days} days overdue. Please arrange payment this week or let us know when to expect it.\"\n },\n {\n  \"name\": \"final\",\n  \"min_days\": 22,\n  \"max_days\": 45,\n  \"template\": \"Dear {client}, this is a final reminder: invoice {invoice} (NGN {amount}) is {days} days overdue. Please settle within 5 working days to avoid service suspension.\",\n  \"escalate\": true\n },\n {\n  \"name\": \"escalate\",\n  \"min_days\": 46,\n  \"max_days\": 9999,\n  \"template\": \"Dear {client}, invoice {invoice} (NGN {amount}) is {days} days overdue and has been passed to our accounts manager, who will contact you.\",\n  \"escalate\": true\n }\n];\n// ---- input normaliser (works for Webhook, Form, WhatsApp, Gmail, Sheets and sample data)\nconst input = $input.all().flatMap(i => {\n  const j = i.json || {};\n  if (j.messages && Array.isArray(j.messages)) {           // WhatsApp Trigger\n    return j.messages.filter(m => m.text).map(m => ({ from: '+' + m.from, text: m.text.body }));\n  }\n  if (j.Subject !== undefined || j.From !== undefined) {     // Gmail Trigger (simple)\n    return [{ from: (j.From || '').replace(/.*<|>.*/g, ''), subject: j.Subject || '', body: j.snippet || j.text || '' }];\n  }\n  const b = (j.body !== undefined && j.headers !== undefined) ? j.body : j;   // Webhook wraps payload in body\n  if (Array.isArray(b)) return b;\n  if (b && Array.isArray(b.items)) return b.items;\n  return [b];\n});\n\nconst today = new Date(); today.setHours(0, 0, 0, 0);\nconst out = [];\nfor (const inv of input) {\n  if (['paid', 'disputed'].includes(inv.status)) continue;\n  const days = Math.round((today - new Date(inv.due_date + 'T00:00:00')) / 864e5);\n  const st = STAGES.find(s => days >= s.min_days && days <= s.max_days);\n  if (!st) continue;\n  const message = st.template.replace('{client}', inv.client).replace('{invoice}', inv.invoice)\n    .replace('{amount}', Number(inv.amount).toLocaleString()).replace('{due}', inv.due_date).replace('{days}', Math.abs(days));\n  out.push({ route: inv.channel, to: inv.contact, invoice: inv.invoice, client: inv.client, stage: st.name, days_overdue: days,\n             escalate: !!st.escalate, message });\n}\nreturn out.map(json => ({ json }));\n"
+      },
+      "id": "787ca6d7-fcc9-569c-8cc7-2e8737ed7ffc",
+      "name": "Logic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a33154c9-bed9-59a3-a6f6-6d1a43791bc2",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0e19da85-e77b-53bb-b699-7b9e302f460a",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "email"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0f273613-9553-56d3-b8cc-e169347fd76f",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        720,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "YOUR_PHONE_NUMBER_ID",
+        "recipientPhoneNumber": "={{ $json.to }}",
+        "textBody": "={{ $json.message }}",
+        "additionalFields": {}
+      },
+      "id": "99b9c848-85d6-5651-926e-aa7a4c1c14a3",
+      "name": "Send WhatsApp reminder",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        980,
+        30
+      ],
+      "webhookId": "99b9c848-85d6-5651-926e-aa7a4c1c14a3"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "=Invoice {{ $json.invoice }}: payment reminder",
+        "emailType": "text",
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "id": "4c21a9ff-2b2e-520f-abb0-89cdcf1ef0c7",
+      "name": "Send email reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        980,
+        210
+      ],
+      "webhookId": "4c21a9ff-2b2e-520f-abb0-89cdcf1ef0c7"
+    },
+    {
+      "parameters": {
+        "content": "## Payment Reminder Bot\nPolite on day 1, firm on day 14, escalated on day 30, without anyone remembering to chase.\n\nEvery weekday at 9am it reads open invoices (invoice, client, contact, channel, amount, due_date, status), picks the right reminder stage by days overdue, and sends it on WhatsApp or email. Paid and disputed invoices are skipped; 'final' and 'escalate' stages also alert the account manager.\n\n**Try it:** click *Test workflow* to run on the sample data. Then connect your credentials on the output nodes and activate.\n\nCode and docs: github.com/Princewill106/payment-reminder-bot",
+        "height": 340,
+        "width": 420,
+        "color": 5
+      },
+      "id": "f4cc27f2-3ca3-5bb1-aa99-e0f126b656dc",
+      "name": "About this workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -460
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule (weekdays 9am)": {
+      "main": [
+        [
+          {
+            "node": "Read open invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test with sample data": {
+      "main": [
+        [
+          {
+            "node": "Sample data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read open invoices": {
+      "main": [
+        [
+          {
+            "node": "Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample data": {
+      "main": [
+        [
+          {
+            "node": "Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Logic": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send email reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
